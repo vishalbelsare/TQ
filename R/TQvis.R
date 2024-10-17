@@ -7,10 +7,10 @@
 # C:/Users/vlado/work/OpenAlex/vis
 
 TQlistGet <- function(D,i){
-  n <- length(DL[[i]][[2]])
+  n <- length(D[[i]][[2]])
   if(n==0) return(NULL)
-  if(n==1) tq <- as.data.frame(t(DL[[i]][[2]][[1]])) else
-    tq <- data.frame(Reduce(rbind,DL[[i]][[2]]))
+  if(n==1) tq <- as.data.frame(t(D[[i]][[2]][[1]])) else
+    tq <- data.frame(Reduce(rbind,D[[i]][[2]]))
   colnames(tq) <- c("s","f","v"); row.names(tq) <- paste("e",1:nrow(tq),sep="")
   return(tq)
 }
@@ -19,11 +19,11 @@ TQlistLab <- function(D,i) return(D[[i]][[1]])
 
 TQmaxVal <- function(D){
   maxV <- 0
-  for(i in 1:length(DL)){
-    n <- length(DL[[i]][[2]])
+  for(i in 1:length(D)){
+    n <- length(D[[i]][[2]])
     if(n==0) next
-    if(n==1) tq <- as.data.frame(t(DL[[i]][[2]][[1]])) else
-      tq <- data.frame(Reduce(rbind,DL[[i]][[2]]))
+    if(n==1) tq <- as.data.frame(t(D[[i]][[2]][[1]])) else
+      tq <- data.frame(Reduce(rbind,D[[i]][[2]]))
     maxV <- max(c(maxV,tq[,3]),na.rm=TRUE)
   }
   return(maxV)
@@ -49,17 +49,19 @@ tqComps <- function(tq,tMin,tMax,sent=NULL,trans){
   tq <- rbind(tq,c(tq[n,2],tMax,sent)); n <- n+1
   x <- h <- w <- c(); last <- tMin
   for(i in 1:n){
-    s <- tq[i,1]; f <- tq[i,2]; v <- ifelse(i<n,round(trans(tq[i,3])),sent)  
+    s <- tq[i,1]; f <- tq[i,2]; v <- max(1,ifelse(i<n,round(trans(tq[i,3])),sent)) 
     if(last < s){x <- c(x,last-tMin); w <- c(w,s-last); h <- c(h,sent)}
     x <- c(x,s-tMin); w <- c(w,f-s); h <- c(h,v); last <- f   
   }
   return(list(x=x,w=w,h=h))
 }
 
-TQicons <- function(D,I,sent,col,type=1,g=0.15,pts=100,f=function(x) x){
+TQicons <- function(D,I,tMin,tMax,sent,col,type=1,
+  g=0.15,pts=100,scale=TRUE,step=10,lty="blank",f=function(x) x){
   grid.newpage()
+  dt <- tMax-tMin; q <- ifelse(scale,0.9,1)
   for(i in 1:length(I)){
-    y0 <- 1.005-0.1*i; j <- I[i]; lab <- TQlistLab(D,j); tq <- TQlistGet(D,j)
+    y0 <- 1.005-0.1*q*i; j <- I[i]; lab <- TQlistLab(D,j); tq <- TQlistGet(D,j)
     xwh <- tqComps(tq,tMin,tMax,sent=sent,trans=f)
     # cat(i,j,lab,"\n"); cat(xwh$x,"\n",xwh$w,"\n",xwh$h,"\n")
     tqLab <- textbox_grob(lab,x=0,y=y0,width=unit(pts,"pt"),
@@ -70,11 +72,21 @@ TQicons <- function(D,I,sent,col,type=1,g=0.15,pts=100,f=function(x) x){
       r = unit(5,"pt"),name = paste0("T",j)
     )
     m <- length(xwh$x); xx <- g + xwh$x*(0.99-g)/dt; ww <- xwh$w*(0.99-g)/dt
-    if(type==1){ C <- col[xwh$h]; h <- 0.09 } else {
-      C <- rep(col[1],m); C[xwh$h==sent] <- col[2]; h <- xwh$h*0.09/sent }
+    if(type==1){ C <- col[xwh$h]; h <- 0.09*q } else {
+      C <- rep(col[1],m); C[xwh$h==sent] <- col[2]; h <- xwh$h*0.09*q/sent }
     tqIcon <- rectGrob(x=xx,y=y0,width=ww,height=h,
-      gp=gpar(lty="blank",fill=C),just=c("left","bottom"))    
+      gp=gpar(lty=lty,fill=C),just=c("left","bottom"))    
     grid.draw(gList(tqLab,tqIcon))
+  }
+  if(scale){ 
+    sx <- seq(step*(1+tMin%/%step),tMax,step)
+    if(tMin!=sx[1]) sx <- c(tMin,sx)
+    if(tMax!=sx[length(sx)]) sx <- c(sx,tMax)
+    scale <- viewport(x=g,y=y0-0.01,width=0.99-g,height=0.08,
+      just=c("left","bottom"),xscale=c(tMin,tMax))
+    pushViewport(scale)
+    grid.xaxis(at=sx,label=sx,gp=gpar(fontsize=10))
+    popViewport()
   }
 }
 
